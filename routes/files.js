@@ -5,11 +5,12 @@ const fs = require('fs');
 const upload = require('../middleware/upload');
 const { queries } = require('../database');
 const { extractText, categorize } = require('../extractors');
+const { requireAdmin } = require('../middleware/auth');
 
 const UPLOAD_BASE = process.env.UPLOAD_DIR || path.join(__dirname, '..', 'uploads');
 
-// Upload files
-router.post('/upload', upload.array('files', 20), async (req, res) => {
+// Upload files - ADMIN ONLY
+router.post('/upload', requireAdmin, upload.array('files', 20), async (req, res) => {
   try {
     const folderId = req.body.folderId || null;
     const results = [];
@@ -42,7 +43,7 @@ router.post('/upload', upload.array('files', 20), async (req, res) => {
   }
 });
 
-// List files
+// List files - ALL USERS
 router.get('/', (req, res) => {
   try {
     const { folderId, category, page = 1, limit = 50 } = req.query;
@@ -66,7 +67,7 @@ router.get('/', (req, res) => {
   }
 });
 
-// Search files
+// Search files - ALL USERS
 router.get('/search', (req, res) => {
   try {
     const { q } = req.query;
@@ -80,7 +81,7 @@ router.get('/search', (req, res) => {
   }
 });
 
-// Recent files
+// Recent files - ALL USERS
 router.get('/recent', (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 20;
@@ -91,7 +92,7 @@ router.get('/recent', (req, res) => {
   }
 });
 
-// Stats
+// Stats - ALL USERS
 router.get('/stats', (req, res) => {
   try {
     const stats = queries.getStats();
@@ -102,7 +103,7 @@ router.get('/stats', (req, res) => {
   }
 });
 
-// Get single file
+// Get single file - ALL USERS
 router.get('/:id', (req, res) => {
   try {
     const file = queries.getFileById(parseInt(req.params.id));
@@ -114,7 +115,7 @@ router.get('/:id', (req, res) => {
   }
 });
 
-// Download file
+// Download file - ALL USERS
 router.get('/:id/download', (req, res) => {
   try {
     const file = queries.getFileById(parseInt(req.params.id));
@@ -129,7 +130,7 @@ router.get('/:id/download', (req, res) => {
   }
 });
 
-// Preview file (serve inline)
+// Preview file - ALL USERS
 router.get('/:id/preview', (req, res) => {
   try {
     const file = queries.getFileById(parseInt(req.params.id));
@@ -146,8 +147,8 @@ router.get('/:id/preview', (req, res) => {
   }
 });
 
-// Update file (rename, move)
-router.put('/:id', (req, res) => {
+// Update file (rename, move) - ADMIN ONLY
+router.put('/:id', requireAdmin, (req, res) => {
   try {
     const file = queries.getFileById(parseInt(req.params.id));
     if (!file) return res.status(404).json({ error: 'File not found' });
@@ -163,8 +164,8 @@ router.put('/:id', (req, res) => {
   }
 });
 
-// Delete file
-router.delete('/:id', (req, res) => {
+// Delete file - ADMIN ONLY
+router.delete('/:id', requireAdmin, (req, res) => {
   try {
     const file = queries.getFileById(parseInt(req.params.id));
     if (!file) return res.status(404).json({ error: 'File not found' });

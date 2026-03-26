@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const { initDB } = require('./database');
+const { authenticate, requireAdmin } = require('./middleware/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,10 +28,22 @@ async function start() {
   // Initialize database
   await initDB();
 
-  // Routes (loaded after DB init)
-  app.use('/api/files', require('./routes/files'));
-  app.use('/api/folders', require('./routes/folders'));
-  app.use('/api/tags', require('./routes/tags'));
+  // Auth routes (public - no auth needed)
+  app.use('/api/auth', require('./routes/auth'));
+
+  // Token via query param middleware (for image/preview/download that can't send headers)
+  app.use('/api/files', (req, res, next) => {
+    if (!req.headers.authorization && req.query.token) {
+      req.headers.authorization = `Bearer ${req.query.token}`;
+    }
+    next();
+  });
+
+  // Protected routes - require authentication
+  // Files: viewers can read/download, only admin can upload/edit/delete
+  app.use('/api/files', authenticate, require('./routes/files'));
+  app.use('/api/folders', authenticate, require('./routes/folders'));
+  app.use('/api/tags', authenticate, require('./routes/tags'));
 
   // SPA fallback
   app.get('*', (req, res) => {

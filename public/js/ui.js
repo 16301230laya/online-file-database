@@ -67,13 +67,14 @@ const UI = {
       ${files.map(f => {
         const cat = this.getCategoryInfo(f.category);
         const isImage = f.category === 'images';
+        const isAdmin = API.isAdmin();
         return `
-        <div class="file-card" data-file-id="${f.id}" draggable="true">
+        <div class="file-card" data-file-id="${f.id}" draggable="${isAdmin}">
           <div class="file-card-actions">
-            <button class="action-btn" data-action="rename" data-file-id="${f.id}" title="Rename">&#9998;</button>
+            ${isAdmin ? `<button class="action-btn" data-action="rename" data-file-id="${f.id}" title="Rename">&#9998;</button>` : ''}
             <button class="action-btn" data-action="download" data-file-id="${f.id}" title="Download">&#11015;</button>
             <button class="action-btn" data-action="preview" data-file-id="${f.id}" title="Preview">&#128065;</button>
-            <button class="action-btn delete-btn" data-action="delete" data-file-id="${f.id}" title="Delete">&#128465;</button>
+            ${isAdmin ? `<button class="action-btn delete-btn" data-action="delete" data-file-id="${f.id}" title="Delete">&#128465;</button>` : ''}
           </div>
           ${isImage
             ? `<img class="file-card-image" src="/api/files/${f.id}/preview" alt="${this.escapeHtml(f.original_name)}" loading="lazy">`
@@ -106,8 +107,9 @@ const UI = {
       `).join('')}
       ${files.map(f => {
         const cat = this.getCategoryInfo(f.category);
+        const isAdmin = API.isAdmin();
         return `
-        <div class="file-list-item" data-file-id="${f.id}" draggable="true">
+        <div class="file-list-item" data-file-id="${f.id}" draggable="${isAdmin}">
           <div class="file-list-icon ${cat.class}">${cat.icon}</div>
           <div class="file-list-name" title="${this.escapeHtml(f.original_name)}">
             ${this.escapeHtml(f.original_name)}
@@ -116,9 +118,9 @@ const UI = {
           <div class="file-list-date">${this.formatDate(f.created_at)}</div>
           <div class="file-list-size">${this.formatSize(f.size)}</div>
           <div class="file-list-actions">
-            <button class="btn-icon action-btn" data-action="rename" data-file-id="${f.id}" title="Rename">&#9998;</button>
+            ${isAdmin ? `<button class="btn-icon action-btn" data-action="rename" data-file-id="${f.id}" title="Rename">&#9998;</button>` : ''}
             <button class="btn-icon action-btn" data-action="download" data-file-id="${f.id}" title="Download">&#11015;</button>
-            <button class="btn-icon action-btn delete-btn" data-action="delete" data-file-id="${f.id}" title="Delete">&#128465;</button>
+            ${isAdmin ? `<button class="btn-icon action-btn delete-btn" data-action="delete" data-file-id="${f.id}" title="Delete">&#128465;</button>` : ''}
           </div>
         </div>`;
       }).join('')}
@@ -200,10 +202,10 @@ const UI = {
         <div class="folder-item ${App.state.folderId === f.id ? 'active' : ''}" data-folder-id="${f.id}">
           <span class="folder-icon">&#128193;</span>
           <span>${this.escapeHtml(f.name)}</span>
-          <span class="folder-actions">
+          ${API.isAdmin() ? `<span class="folder-actions">
             <button data-action="rename-folder" data-folder-id="${f.id}" title="Rename">&#9998;</button>
             <button data-action="delete-folder" data-folder-id="${f.id}" title="Delete">&#128465;</button>
-          </span>
+          </span>` : ''}
         </div>
         <div class="folder-children">${buildTree(f.id)}</div>
       `).join('');
@@ -344,14 +346,16 @@ const UI = {
       </div>
       <label style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);">Tags</label>
       <div class="tag-editor" id="tagEditor">
-        ${(file.tags || []).map(t => `<span class="tag-chip">${this.escapeHtml(t)} <span class="remove-tag" data-tag="${this.escapeHtml(t)}" data-file-id="${file.id}">&times;</span></span>`).join('')}
-        <input type="text" class="tag-input" id="tagInput" placeholder="Add tag..." data-file-id="${file.id}">
+        ${(file.tags || []).map(t => `<span class="tag-chip">${this.escapeHtml(t)} ${API.isAdmin() ? `<span class="remove-tag" data-tag="${this.escapeHtml(t)}" data-file-id="${file.id}">&times;</span>` : ''}</span>`).join('')}
+        ${API.isAdmin() ? `<input type="text" class="tag-input" id="tagInput" placeholder="Add tag..." data-file-id="${file.id}">` : ''}
       </div>
       <div style="display:flex;gap:8px;margin-top:16px;">
         <button class="btn btn-primary" onclick="API.downloadFile(${file.id})">&#11015; Download</button>
+        ${API.isAdmin() ? `
         <button class="btn btn-secondary" onclick="App.renameFile(${file.id})">&#9998; Rename</button>
         <button class="btn btn-secondary" onclick="App.moveFile(${file.id})">&#128193; Move</button>
         <button class="btn btn-danger" onclick="App.deleteFile(${file.id}); document.getElementById('modalOverlay').classList.remove('active');">&#128465; Delete</button>
+        ` : ''}
       </div>
     </div>`;
 

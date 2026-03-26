@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { queries } = require('../database');
+const { requireAdmin } = require('../middleware/auth');
 
-// List all folders
+// List all folders - ALL USERS
 router.get('/', (req, res) => {
   try {
     const folders = queries.listFolders();
@@ -12,7 +13,7 @@ router.get('/', (req, res) => {
   }
 });
 
-// Get folder contents
+// Get folder contents - ALL USERS
 router.get('/:id/contents', (req, res) => {
   try {
     const folderId = parseInt(req.params.id);
@@ -27,8 +28,8 @@ router.get('/:id/contents', (req, res) => {
   }
 });
 
-// Create folder
-router.post('/', (req, res) => {
+// Create folder - ADMIN ONLY
+router.post('/', requireAdmin, (req, res) => {
   try {
     const { name, parentId } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Folder name is required' });
@@ -47,8 +48,8 @@ router.post('/', (req, res) => {
   }
 });
 
-// Rename folder
-router.put('/:id', (req, res) => {
+// Rename folder - ADMIN ONLY
+router.put('/:id', requireAdmin, (req, res) => {
   try {
     const { name } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Name required' });
@@ -64,8 +65,8 @@ router.put('/:id', (req, res) => {
   }
 });
 
-// Delete folder
-router.delete('/:id', (req, res) => {
+// Delete folder - ADMIN ONLY
+router.delete('/:id', requireAdmin, (req, res) => {
   try {
     const counts = queries.countFolderContents(parseInt(req.params.id));
     if (counts.file_count > 0 || counts.folder_count > 0) {

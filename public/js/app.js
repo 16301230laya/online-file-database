@@ -10,10 +10,104 @@ const App = {
   },
 
   async init() {
+    // Check if user is logged in
+    const token = API.getToken();
+    if (token) {
+      try {
+        const user = await API.getMe();
+        API.setUser(user);
+        this.showApp();
+      } catch {
+        API.clearToken();
+        this.showAuth();
+      }
+    } else {
+      this.showAuth();
+    }
+  },
+
+  // AUTH FLOW
+  showAuth() {
+    document.getElementById('authPage').style.display = 'flex';
+    document.getElementById('appWrapper').style.display = 'none';
+    this.bindAuthEvents();
+
+    // Check if any users exist
+    API.getAuthStatus().then(status => {
+      if (!status.hasUsers) {
+        // No users - show register form as first (admin) account
+        document.getElementById('loginForm').style.display = 'none';
+        document.getElementById('registerForm').style.display = 'block';
+        document.getElementById('adminNote').style.display = 'block';
+      }
+    }).catch(() => {});
+  },
+
+  bindAuthEvents() {
+    // Toggle between login and register
+    document.getElementById('showRegister').addEventListener('click', (e) => {
+      e.preventDefault();
+      document.getElementById('loginForm').style.display = 'none';
+      document.getElementById('registerForm').style.display = 'block';
+    });
+
+    document.getElementById('showLogin').addEventListener('click', (e) => {
+      e.preventDefault();
+      document.getElementById('registerForm').style.display = 'none';
+      document.getElementById('loginForm').style.display = 'block';
+    });
+
+    // Login form
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      const errorEl = document.getElementById('loginError');
+
+      try {
+        errorEl.textContent = '';
+        await API.login(email, password);
+        this.showApp();
+      } catch (err) {
+        errorEl.textContent = err.message;
+      }
+    });
+
+    // Register form
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('regUsername').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const password = document.getElementById('regPassword').value;
+      const confirm = document.getElementById('regConfirm').value;
+      const errorEl = document.getElementById('registerError');
+
+      if (password !== confirm) {
+        errorEl.textContent = 'Passwords do not match';
+        return;
+      }
+
+      try {
+        errorEl.textContent = '';
+        await API.register(username, email, password);
+        this.showApp();
+      } catch (err) {
+        errorEl.textContent = err.message;
+      }
+    });
+  },
+
+  showApp() {
+    document.getElementById('authPage').style.display = 'none';
+    document.getElementById('appWrapper').style.display = 'block';
+
+    const user = API.getUser();
+    this.applyRoleUI(user);
+
     // Bind UI events
     this.bindEvents();
     // Load initial data
-    await Promise.all([
+    Promise.all([
       this.showRecent(),
       this.loadFolders(),
       this.loadTags(),
@@ -21,9 +115,43 @@ const App = {
     ]);
   },
 
-  bindEvents() {
+  applyRoleUI(user) {
+    if (!user) return;
+
+    // Set user menu info
+    document.getElementById('userInitial').textContent = (user.username || 'U')[0].toUpperCase();
+    document.getElementById('dropdownUsername').textContent = user.username;
+    document.getElementById('dropdownEmail').textContent = user.email;
+    const roleBadge = document.getElementById('dropdownRole');
+    roleBadge.textContent = user.role;
+    roleBadge.className = 'user-role-badge ' + user.role;
+
+    const isAdmin = user.role === 'admin';
+
+    // Hide admin-only elements for viewers
+    document.querySelectorAll('.admin-only').forEach(el => {
+      el.style.display = isAdmin ? '' : 'none';
+    });
+
     // Upload button
+    const uploadBtn = document.getElementById('uploadBtn');
+    if (!isAdmin) {
+      uploadBtn.style.display = 'none';
+    } else {
+      uploadBtn.style.display = '';
+    }
+
+    // Manage Users button (admin only)
+    const manageBtn = document.getElementById('manageUsersBtn');
+    if (isAdmin) {
+      manageBtn.style.display = 'flex';
+    }
+  },
+
+  bindEvents() {
+    // Upload button (admin only)
     document.getElementById('uploadBtn').addEventListener('click', () => {
+      if (!API.isAdmin()) return UI.toast('Admin access required', 'error');
       document.getElementById('fileInput').click();
     });
 
@@ -78,8 +206,11 @@ const App = {
       });
     });
 
-    // New folder button
-    document.getElementById('newFolderBtn').addEventListener('click', () => this.createFolder());
+    // New folder button (admin only)
+    document.getElementById('newFolderBtn').addEventListener('click', () => {
+      if (!API.isAdmin()) return UI.toast('Admin access required', 'error');
+      this.createFolder();
+    });
 
     // Modal close
     document.getElementById('modalClose').addEventListener('click', () => {
@@ -99,12 +230,28 @@ const App = {
     // Logo -> home
     document.getElementById('logoHome').addEventListener('click', () => this.showRecent());
 
-    // Drag and drop
+    // User menu
+    document.getElementById('userAvatar').addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.getElementById('userDropdown').classList.toggle('show');
+    });
+    document.addEventListener('click', () => {
+      document.getElementById('userDropdown').classList.remove('show');
+    });
+
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', () => API.logout());
+
+    // Manage Users
+    document.getElementById('manageUsersBtn').addEventListener('click', () => this.showManageUsers());
+
+    // Drag and drop (admin only)
     this.initDragDrop();
 
     // Make nav items (Recent/All) drop targets to move files to root
     document.querySelectorAll('.nav-item[data-view="recent"], .nav-item[data-view="all"]').forEach(el => {
       el.addEventListener('dragover', (e) => {
+        if (!API.isAdmin()) return;
         if (e.dataTransfer.types.includes('application/x-file-id')) {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
@@ -115,6 +262,7 @@ const App = {
       el.addEventListener('drop', async (e) => {
         e.preventDefault();
         el.classList.remove('drag-over');
+        if (!API.isAdmin()) return;
         const fileId = e.dataTransfer.getData('application/x-file-id');
         if (fileId) {
           await this.moveFileToRoot(parseInt(fileId));
@@ -132,6 +280,7 @@ const App = {
     const overlay = document.getElementById('dropOverlay');
 
     document.addEventListener('dragenter', (e) => {
+      if (!API.isAdmin()) return;
       e.preventDefault();
       dragCounter++;
       if (e.dataTransfer.types.includes('Files')) overlay.classList.add('active');
@@ -149,12 +298,14 @@ const App = {
       e.preventDefault();
       dragCounter = 0;
       overlay.classList.remove('active');
+      if (!API.isAdmin()) return;
       if (e.dataTransfer.files.length) this.uploadFiles(e.dataTransfer.files);
     });
   },
 
   // Upload files
   async uploadFiles(fileList) {
+    if (!API.isAdmin()) return UI.toast('Admin access required to upload files', 'error');
     try {
       UI.showProgress(0, 'Preparing upload...');
       const result = await API.uploadFiles(fileList, this.state.folderId, (percent) => {
@@ -239,7 +390,6 @@ const App = {
     const folder = this.state.folders.find(f => f.id === folderId);
     const crumbs = [{ label: 'Home', action: 'home' }];
     if (folder) {
-      // Build path
       const path = [];
       let current = folder;
       while (current) {
@@ -264,7 +414,6 @@ const App = {
       UI.toast('Failed to load folder', 'error');
     }
 
-    // Update folder tree highlight
     document.querySelectorAll('.folder-item').forEach(el => {
       el.classList.toggle('active', parseInt(el.dataset.folderId) === folderId);
     });
@@ -331,6 +480,7 @@ const App = {
   },
 
   async deleteFile(id) {
+    if (!API.isAdmin()) return UI.toast('Admin access required', 'error');
     if (!confirm('Are you sure you want to delete this file?')) return;
     try {
       await API.deleteFile(id);
@@ -343,6 +493,7 @@ const App = {
   },
 
   async renameFile(id) {
+    if (!API.isAdmin()) return UI.toast('Admin access required', 'error');
     try {
       const file = await API.getFile(id);
       const ext = file.original_name.includes('.') ? '.' + file.original_name.split('.').pop() : '';
@@ -372,6 +523,7 @@ const App = {
   },
 
   async moveFile(id) {
+    if (!API.isAdmin()) return UI.toast('Admin access required', 'error');
     const folders = this.state.folders;
     const optionsHtml = `<option value="">Root (no folder)</option>` +
       folders.map(f => `<option value="${f.id}">${UI.escapeHtml(f.name)}</option>`).join('');
@@ -393,6 +545,7 @@ const App = {
 
   // Folder actions
   async createFolder() {
+    if (!API.isAdmin()) return UI.toast('Admin access required', 'error');
     UI.showDialog('New Folder', `
       <label>Folder name:</label>
       <input type="text" id="folderNameInput" placeholder="Enter folder name">
@@ -411,6 +564,7 @@ const App = {
   },
 
   async renameFolder(id) {
+    if (!API.isAdmin()) return UI.toast('Admin access required', 'error');
     const folder = this.state.folders.find(f => f.id === id);
     UI.showDialog('Rename Folder', `
       <label>New name:</label>
@@ -430,6 +584,7 @@ const App = {
   },
 
   async deleteFolderAction(id) {
+    if (!API.isAdmin()) return UI.toast('Admin access required', 'error');
     if (!confirm('Delete this folder? It must be empty.')) return;
     try {
       await API.deleteFolder(id);
@@ -438,6 +593,74 @@ const App = {
       if (this.state.folderId === id) this.showRecent();
     } catch (err) {
       UI.toast(err.message, 'error');
+    }
+  },
+
+  // Manage Users (Admin)
+  async showManageUsers() {
+    try {
+      const users = await API.listUsers();
+      const currentUser = API.getUser();
+
+      let html = `<div class="manage-users">
+        <h3 style="margin-bottom:16px;">User Management</h3>
+        <table class="users-table">
+          <thead><tr><th>User</th><th>Email</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
+          <tbody>
+          ${users.map(u => `
+            <tr>
+              <td><strong>${UI.escapeHtml(u.username)}</strong></td>
+              <td>${UI.escapeHtml(u.email)}</td>
+              <td><span class="user-role-badge ${u.role}">${u.role}</span></td>
+              <td>${UI.formatDate(u.created_at)}</td>
+              <td>
+                ${u.id !== currentUser.id ? `
+                  <select class="role-select" data-user-id="${u.id}">
+                    <option value="viewer" ${u.role === 'viewer' ? 'selected' : ''}>Viewer</option>
+                    <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+                  </select>
+                  <button class="btn btn-danger btn-sm delete-user-btn" data-user-id="${u.id}">Remove</button>
+                ` : '<span style="color:var(--text-muted);">You</span>'}
+              </td>
+            </tr>
+          `).join('')}
+          </tbody>
+        </table>
+      </div>`;
+
+      const overlay = document.getElementById('modalOverlay');
+      document.getElementById('modalTitle').textContent = 'Manage Users';
+      document.getElementById('modalBody').innerHTML = html;
+      overlay.classList.add('active');
+
+      // Bind role change
+      document.querySelectorAll('.role-select').forEach(sel => {
+        sel.addEventListener('change', async () => {
+          try {
+            await API.updateUserRole(parseInt(sel.dataset.userId), sel.value);
+            UI.toast('Role updated', 'success');
+          } catch (err) {
+            UI.toast(err.message, 'error');
+            this.showManageUsers(); // refresh
+          }
+        });
+      });
+
+      // Bind delete
+      document.querySelectorAll('.delete-user-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('Remove this user?')) return;
+          try {
+            await API.deleteUser(parseInt(btn.dataset.userId));
+            UI.toast('User removed', 'success');
+            this.showManageUsers(); // refresh
+          } catch (err) {
+            UI.toast(err.message, 'error');
+          }
+        });
+      });
+    } catch (err) {
+      UI.toast('Failed to load users', 'error');
     }
   },
 
@@ -472,6 +695,7 @@ const App = {
 
   // Drag file directly to a folder
   async moveFileToFolder(fileId, folderId) {
+    if (!API.isAdmin()) return UI.toast('Admin access required', 'error');
     try {
       await API.updateFile(fileId, { folderId });
       const folder = this.state.folders.find(f => f.id === folderId);
@@ -484,6 +708,7 @@ const App = {
 
   // Drag file to root (no folder)
   async moveFileToRoot(fileId) {
+    if (!API.isAdmin()) return UI.toast('Admin access required', 'error');
     try {
       await API.updateFile(fileId, { folderId: null });
       UI.toast('File moved to root', 'success');

@@ -2,12 +2,48 @@
 const API = {
   baseUrl: '',
 
+  getToken() {
+    return localStorage.getItem('auth_token');
+  },
+
+  setToken(token) {
+    localStorage.setItem('auth_token', token);
+  },
+
+  clearToken() {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+  },
+
+  getUser() {
+    try {
+      return JSON.parse(localStorage.getItem('auth_user'));
+    } catch { return null; }
+  },
+
+  setUser(user) {
+    localStorage.setItem('auth_user', JSON.stringify(user));
+  },
+
+  isAdmin() {
+    const user = this.getUser();
+    return user && user.role === 'admin';
+  },
+
   async request(url, options = {}) {
     try {
-      const res = await fetch(this.baseUrl + url, {
-        headers: { 'Content-Type': 'application/json', ...options.headers },
-        ...options
-      });
+      const headers = { 'Content-Type': 'application/json', ...options.headers };
+      const token = this.getToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(this.baseUrl + url, { headers, ...options });
+
+      if (res.status === 401) {
+        this.clearToken();
+        window.location.reload();
+        throw new Error('Session expired. Please login again.');
+      }
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: res.statusText }));
         throw new Error(err.error || 'Request failed');
@@ -17,6 +53,55 @@ const API = {
       console.error(`API error [${url}]:`, err);
       throw err;
     }
+  },
+
+  // Auth
+  async login(email, password) {
+    const result = await this.request('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password })
+    });
+    this.setToken(result.token);
+    this.setUser(result.user);
+    return result;
+  },
+
+  async register(username, email, password) {
+    const result = await this.request('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ username, email, password })
+    });
+    this.setToken(result.token);
+    this.setUser(result.user);
+    return result;
+  },
+
+  async getAuthStatus() {
+    return this.request('/api/auth/status');
+  },
+
+  async getMe() {
+    return this.request('/api/auth/me');
+  },
+
+  async listUsers() {
+    return this.request('/api/auth/users');
+  },
+
+  async updateUserRole(id, role) {
+    return this.request(`/api/auth/users/${id}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role })
+    });
+  },
+
+  async deleteUser(id) {
+    return this.request(`/api/auth/users/${id}`, { method: 'DELETE' });
+  },
+
+  logout() {
+    this.clearToken();
+    window.location.reload();
   },
 
   // Files
@@ -31,6 +116,10 @@ const API = {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', this.baseUrl + '/api/files/upload');
 
+      // Add auth header
+      const token = this.getToken();
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
       if (onProgress) {
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
@@ -40,6 +129,12 @@ const API = {
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           resolve(JSON.parse(xhr.responseText));
+        } else if (xhr.status === 401) {
+          this.clearToken();
+          window.location.reload();
+          reject(new Error('Session expired'));
+        } else if (xhr.status === 403) {
+          reject(new Error('Admin access required'));
         } else {
           try { reject(new Error(JSON.parse(xhr.responseText).error)); }
           catch { reject(new Error('Upload failed')); }
@@ -76,11 +171,24 @@ const API = {
   },
 
   downloadFile(id) {
-    window.open(`/api/files/${id}/download`, '_blank');
+    // Add token as query param for download
+    const token = this.getToken();
+    const url = `/api/files/${id}/download`;
+    // Create a temporary link with auth
+    const a = document.createElement('a');
+    fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(res => res.blob())
+      .then(blob => {
+        a.href = URL.createObjectURL(blob);
+        a.download = '';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      });
   },
 
   getPreviewUrl(id) {
-    return `/api/files/${id}/preview`;
+    const token = this.getToken();
+    return `/api/files/${id}/preview${token ? '?token=' + token : ''}`;
   },
 
   async updateFile(id, data) {

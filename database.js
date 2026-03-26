@@ -70,6 +70,17 @@ async function initDB() {
     )
   `);
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      password TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'viewer',
+      created_at TEXT DEFAULT (datetime('now','localtime'))
+    )
+  `);
+
   save();
   return db;
 }
@@ -298,6 +309,42 @@ const queries = {
 
   getCategoryCounts() {
     return all('SELECT category, COUNT(*) as count FROM files GROUP BY category ORDER BY count DESC');
+  },
+
+  // Users
+  insertUser({ username, email, password, role }) {
+    return run(
+      'INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)',
+      [username, email, password, role || 'viewer']
+    );
+  },
+
+  getUserByEmail(email) {
+    return get('SELECT * FROM users WHERE email = ?', [email]);
+  },
+
+  getUserByUsername(username) {
+    return get('SELECT * FROM users WHERE username = ?', [username]);
+  },
+
+  getUserById(id) {
+    return get('SELECT id, username, email, role, created_at FROM users WHERE id = ?', [id]);
+  },
+
+  getUserCount() {
+    return get('SELECT COUNT(*) as count FROM users') || { count: 0 };
+  },
+
+  listUsers() {
+    return all('SELECT id, username, email, role, created_at FROM users ORDER BY created_at');
+  },
+
+  updateUserRole({ id, role }) {
+    return run('UPDATE users SET role = ? WHERE id = ?', [role, id]);
+  },
+
+  deleteUser(id) {
+    return run('DELETE FROM users WHERE id = ?', [id]);
   }
 };
 
