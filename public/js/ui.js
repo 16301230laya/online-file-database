@@ -70,6 +70,7 @@ const UI = {
         return `
         <div class="file-card" data-file-id="${f.id}" draggable="true">
           <div class="file-card-actions">
+            <button class="action-btn" data-action="rename" data-file-id="${f.id}" title="Rename">&#9998;</button>
             <button class="action-btn" data-action="download" data-file-id="${f.id}" title="Download">&#11015;</button>
             <button class="action-btn" data-action="preview" data-file-id="${f.id}" title="Preview">&#128065;</button>
             <button class="action-btn delete-btn" data-action="delete" data-file-id="${f.id}" title="Delete">&#128465;</button>
@@ -115,6 +116,7 @@ const UI = {
           <div class="file-list-date">${this.formatDate(f.created_at)}</div>
           <div class="file-list-size">${this.formatSize(f.size)}</div>
           <div class="file-list-actions">
+            <button class="btn-icon action-btn" data-action="rename" data-file-id="${f.id}" title="Rename">&#9998;</button>
             <button class="btn-icon action-btn" data-action="download" data-file-id="${f.id}" title="Download">&#11015;</button>
             <button class="btn-icon action-btn delete-btn" data-action="delete" data-file-id="${f.id}" title="Delete">&#128465;</button>
           </div>
@@ -181,6 +183,7 @@ const UI = {
         e.stopPropagation();
         const action = btn.dataset.action;
         const id = btn.dataset.fileId;
+        if (action === 'rename') App.renameFile(id);
         if (action === 'download') API.downloadFile(id);
         if (action === 'delete') App.deleteFile(id);
         if (action === 'preview') App.showPreview(id);
@@ -346,6 +349,7 @@ const UI = {
       </div>
       <div style="display:flex;gap:8px;margin-top:16px;">
         <button class="btn btn-primary" onclick="API.downloadFile(${file.id})">&#11015; Download</button>
+        <button class="btn btn-secondary" onclick="App.renameFile(${file.id})">&#9998; Rename</button>
         <button class="btn btn-secondary" onclick="App.moveFile(${file.id})">&#128193; Move</button>
         <button class="btn btn-danger" onclick="App.deleteFile(${file.id}); document.getElementById('modalOverlay').classList.remove('active');">&#128465; Delete</button>
       </div>

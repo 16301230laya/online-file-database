@@ -342,6 +342,35 @@ const App = {
     }
   },
 
+  async renameFile(id) {
+    try {
+      const file = await API.getFile(id);
+      const ext = file.original_name.includes('.') ? '.' + file.original_name.split('.').pop() : '';
+      const nameWithoutExt = ext ? file.original_name.slice(0, -ext.length) : file.original_name;
+
+      UI.showDialog('Rename File', `
+        <label>New name:</label>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="text" id="renameInput" value="${UI.escapeHtml(nameWithoutExt)}" style="flex:1;">
+          <span style="color:var(--text-muted);font-size:14px;">${UI.escapeHtml(ext)}</span>
+        </div>
+      `, async () => {
+        const newName = document.getElementById('renameInput').value.trim();
+        if (!newName) return UI.toast('Please enter a name', 'error');
+        try {
+          await API.updateFile(id, { name: newName + ext });
+          UI.toast('File renamed', 'success');
+          document.getElementById('modalOverlay').classList.remove('active');
+          this.refreshView();
+        } catch (err) {
+          UI.toast('Rename failed: ' + err.message, 'error');
+        }
+      });
+    } catch (err) {
+      UI.toast('Failed to load file', 'error');
+    }
+  },
+
   async moveFile(id) {
     const folders = this.state.folders;
     const optionsHtml = `<option value="">Root (no folder)</option>` +
