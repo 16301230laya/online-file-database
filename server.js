@@ -51,10 +51,10 @@ async function start() {
   });
 
   app.listen(PORT, () => {
-    console.log(`\n  ╔══════════════════════════════════════╗`);
-    console.log(`  ║   Online Database is running!        ║`);
-    console.log(`  ║   http://localhost:${PORT}              ║`);
-    console.log(`  ╚══════════════════════════════════════╝\n`);
+    console.log(`\n  ╔════════════════════════════════════════════╗`);
+    console.log(`  ║   Treasury Online Database is running!     ║`);
+    console.log(`  ║   http://localhost:${PORT}                    ║`);
+    console.log(`  ╚════════════════════════════════════════════╝\n`);
   });
 }
 
