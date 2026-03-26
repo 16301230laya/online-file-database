@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(taskkill //F //IM node.exe)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(curl -s http://localhost:3000/api/files/stats)",
+      "Bash(git --version)",
+      "Bash(gh --version)"
+    ]
+  }
+}

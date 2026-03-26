@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: online-database
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: UPLOAD_DIR
+        value: /opt/render/project/src/data/uploads
+    disk:
+      name: data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
