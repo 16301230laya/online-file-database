@@ -2,7 +2,7 @@ const initSqlJs = require('sql.js');
 const path = require('path');
 const fs = require('fs');
 
-const dbDir = path.join(__dirname, 'data');
+const dbDir = process.env.DATA_DIR || path.join(__dirname, 'data');
 if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
 
 const DB_PATH = path.join(dbDir, 'database.sqlite');
